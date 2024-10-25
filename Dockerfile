@@ -8,7 +8,9 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /photon
-ADD http://photon.komoot.de/data/photon-0.2.7.jar /photon/photon.jar
+COPY photon-0.2.7.jar /photon/photon.jar
+
+#ADD http://photon.komoot.de/data/photon-0.2.7.jar /photon/photon.jar
 COPY entrypoint.sh ./entrypoint.sh
 
 VOLUME /photon/photon_data
