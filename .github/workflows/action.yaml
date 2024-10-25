@@ -10,6 +10,7 @@ env:
   IMAGE_TAG: ${{ github.sha }}
   AWS_REGION: ${{ secrets.AWS_REGION }}
   ECR_REGISTRY: 055775428164.dkr.ecr.eu-west-2.amazonaws.com
+  TIMESTAMP: ${{ format('YYYY-MM-DD HH:mm:ss') }}
 
 jobs:
   build-and-push:
@@ -29,11 +30,43 @@ jobs:
     - name: Login to Amazon ECR
       uses: aws-actions/amazon-ecr-login@v1
 
-    # Build, tag, and push Docker image to Amazon ECR
+    # Build, tag, and push Docker image to Amazon ECR with retry mechanism
     - name: Build, tag, and push image to Amazon ECR
       run: |
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:${{ env.IMAGE_TAG }} .
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ env.IMAGE_TAG }}
+        # Add retry mechanism for the build
+        for i in 1 2 3; do
+          echo "Build attempt $i of 3"
+          if docker build \
+            --build-arg PHOTON_VERSION=0.3.5 \
+            --build-arg PHOTON_JAR_URL=https://github.com/komoot/photon/releases/download/0.3.5/photon-0.3.5.jar \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:${{ env.IMAGE_TAG }} .; then
+            echo "Build successful!"
+            break
+          else
+            if [ $i -eq 3 ]; then
+              echo "Build failed after 3 attempts"
+              exit 1
+            fi
+            echo "Build failed, retrying in 10 seconds..."
+            sleep 10
+          fi
+        done
+
+        # Add retry mechanism for the push
+        for i in 1 2 3; do
+          echo "Push attempt $i of 3"
+          if docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ env.IMAGE_TAG }}; then
+            echo "Push successful!"
+            break
+          else
+            if [ $i -eq 3 ]; then
+              echo "Push failed after 3 attempts"
+              exit 1
+            fi
+            echo "Push failed, retrying in 10 seconds..."
+            sleep 10
+          fi
+        done
 
   deploy:
     needs: build-and-push
@@ -52,7 +85,6 @@ jobs:
         chmod +x ./kubectl
         sudo mv ./kubectl /usr/local/bin/kubectl
 
-    # Set up AWS CLI
     - name: Set up AWS CLI
       uses: aws-actions/configure-aws-credentials@v1
       with:
@@ -82,7 +114,13 @@ jobs:
 
     - name: Verify Deployment
       run: |
-        kubectl rollout status deployment/photon -n default
+        # Add timeout to rollout status check
+        timeout 300s kubectl rollout status deployment/photon -n default || {
+          echo "Deployment did not complete within 5 minutes"
+          kubectl describe deployment photon -n default
+          kubectl get pods -n default -l app=photon
+          exit 1
+        }
         
     - name: Notify Microsoft Teams on Success
       if: success()
@@ -98,7 +136,9 @@ jobs:
           - name: Timestamp
             value: ${{ env.TIMESTAMP }}
           - name: Message
-            value: "The Photon build and push was successful. The new deployment is up and running."
+            value: "✅ Photon deployment successful! New version: ${{ env.IMAGE_TAG }}"
+          - name: Environment
+            value: "Production"
       
     - name: Notify Microsoft Teams on Failure
       if: failure()
@@ -114,4 +154,6 @@ jobs:
           - name: Timestamp
             value: ${{ env.TIMESTAMP }}
           - name: Message
-            value: "The Photon build and push failed. Please check the GitHub Actions logs for more details."
+            value: "❌ Photon deployment failed! Check logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          - name: Environment
+            value: "Production"
