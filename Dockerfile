@@ -1,19 +1,23 @@
-FROM openjdk:8-jre
+# Use OpenJDK as the base image
+FROM openjdk:11-jre-slim
 
-# Install pbzip2 for parallel extraction
-RUN apt-get update \
-    && apt-get -y install \
-        pbzip2 \
-        wget \
-    && rm -rf /var/lib/apt/lists/*
+# Install necessary tools for downloading Photon
+RUN apt-get update && \
+    apt-get install -y wget && \
+    apt-get clean
 
+# Set the Photon version
+ENV PHOTON_VERSION=0.3.5
+
+# Create directories for Photon data
 WORKDIR /photon
-COPY photon-0.2.7.jar /photon/photon.jar
+RUN mkdir -p /data/photon_data
 
-#ADD http://photon.komoot.de/data/photon-0.2.7.jar /photon/photon.jar
-COPY entrypoint.sh ./entrypoint.sh
+# Download the Photon jar file
+RUN wget https://github.com/komoot/photon/releases/download/${PHOTON_VERSION}/photon-${PHOTON_VERSION}.jar -O photon.jar
 
-VOLUME /photon/photon_data
+# Expose the default Photon port
 EXPOSE 2322
 
-ENTRYPOINT /photon/entrypoint.sh
+# Set the startup command to connect to Elasticsearch over HTTP
+CMD ["java", "-jar", "photon.jar", "-data-dir", "/data/photon_data", "-listen-port", "2322", "-elasticsearch", "http://elasticsearch-master.default.svc.cluster.local:9200"]
