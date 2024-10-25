@@ -1,19 +1,21 @@
-#!/bin/bash
+FROM openjdk:8-jre
 
+# Install required packages
+RUN apt-get update \
+    && apt-get -y install \
+        pbzip2 \
+        wget \
+    && rm -rf /var/lib/apt/lists/*
 
-# Download elasticsearch index
-if [ ! -d "/photon/photon_data/elasticsearch" ]; then
-    echo "Downloading search index"
+WORKDIR /photon
 
-    # Let graphhopper know where the traffic is coming from
-    USER_AGENT="docker: thomasnordquist/photon-geocoder"
-    wget --user-agent="$USER_AGENT" -O - http://download1.graphhopper.com/public/photon-db-latest.tar.bz2 | bzip2 -cd | tar x
-fi
+# Instead of using ADD with an HTTP URL, we'll download the file during build
+RUN wget -O photon.jar https://github.com/komoot/photon/releases/download/0.3.5/photon-0.3.5.jar
 
-# Start photon if elastic index exists
-if [ -d "/photon/photon_data/elasticsearch" ]; then
-    echo "Start photon"
-    java -jar photon.jar $@
-else
-    echo "Could not start photon, the search index could not be found"
-fi
+COPY entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
+
+VOLUME /photon/photon_data
+EXPOSE 2322
+
+ENTRYPOINT ["/photon/entrypoint.sh"]
