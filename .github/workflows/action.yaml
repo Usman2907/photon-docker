@@ -1,0 +1,117 @@
+name: Photon Build and Deploy to ECR
+
+on:
+  push:
+    branches:
+      - master
+
+env:
+  ECR_REPOSITORY: photon
+  IMAGE_TAG: ${{ github.sha }}
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REGISTRY: 055775428164.dkr.ecr.eu-west-2.amazonaws.com
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    # Configure AWS credentials
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+
+    # Login to Amazon ECR
+    - name: Login to Amazon ECR
+      uses: aws-actions/amazon-ecr-login@v1
+
+    # Build, tag, and push Docker image to Amazon ECR
+    - name: Build, tag, and push image to Amazon ECR
+      run: |
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:${{ env.IMAGE_TAG }} .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ env.IMAGE_TAG }}
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Kubernetes Manifests
+      uses: actions/checkout@v2
+      with:
+        repository: Polysurance/kubernetes
+        token: ${{ secrets.GH_PAT }}
+        ref: dev
+
+    - name: Install kubectl
+      run: |
+        curl -LO "https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl"
+        chmod +x ./kubectl
+        sudo mv ./kubectl /usr/local/bin/kubectl
+
+    # Set up AWS CLI
+    - name: Set up AWS CLI
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: eu-west-2
+
+    - name: Update kubeconfig
+      run: |
+        aws eks --region eu-west-2 update-kubeconfig --name Polysurance-prod 
+    
+    - name: Test kubectl connection
+      run: |
+        kubectl cluster-info
+        
+    - name: Update Kubernetes Deployment Image
+      run: |
+        sed -i 's|\(.*dkr\.ecr\..*amazonaws\.com/photon:\).*|\1${{ env.IMAGE_TAG }}|' photon/deployment.yaml
+    
+    - name: Show modified deployment.yaml
+      run: |
+        cat photon/deployment.yaml
+        
+    - name: Deploy to Kubernetes
+      run: |
+        kubectl apply -f photon/deployment.yaml -n default
+
+    - name: Verify Deployment
+      run: |
+        kubectl rollout status deployment/photon -n default
+        
+    - name: Notify Microsoft Teams on Success
+      if: success()
+      uses: dchourasia/ms-teams-notification@1.0
+      with:
+        github-token: ${{ github.token }}
+        webhook-uri: ${{ secrets.TEAMS_WEBHOOK_URL }}
+        card-layout-exit: complete
+        show-on-start: false
+        show-on-exit: true
+        timezone: "Europe/London"
+        custom-facts: |
+          - name: Timestamp
+            value: ${{ env.TIMESTAMP }}
+          - name: Message
+            value: "The Photon build and push was successful. The new deployment is up and running."
+      
+    - name: Notify Microsoft Teams on Failure
+      if: failure()
+      uses: dchourasia/ms-teams-notification@1.0
+      with:
+        github-token: ${{ github.token }}
+        webhook-uri: ${{ secrets.TEAMS_WEBHOOK_URL }}
+        card-layout-exit: complete
+        show-on-start: false
+        show-on-exit: true
+        timezone: "Europe/London"
+        custom-facts: |
+          - name: Timestamp
+            value: ${{ env.TIMESTAMP }}
+          - name: Message
+            value: "The Photon build and push failed. Please check the GitHub Actions logs for more details."
