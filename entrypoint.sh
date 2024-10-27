@@ -18,34 +18,29 @@
 #     echo "Could not start photon, the search index could not be found"
 # fi
 
+
+
 #!/bin/bash
 
-# Directory where PVC is mounted
-DATA_DIR="/data/photon_data"
+# Download and merge specific region maps (UK and Saudi Arabia)
+if [ ! -f "/photon/photon_data/merged.osm.pbf" ]; then
+    echo "Downloading specific region maps for UK and Saudi Arabia..."
 
-# Function to download data directly to PVC
-download_data() {
-    cd "${DATA_DIR}"
-    
-    # Check if data is already downloaded
-    if [ ! -f "${DATA_DIR}/downloaded.flag" ]; then
-        echo "Starting data download directly to PVC..."
-        
-        # Download data directly to PVC
-        wget -P "${DATA_DIR}" http://download1.geofabrik.de/europe/germany-latest.osm.pbf
-        
-        # Add your specific data download commands here
-        # Make sure all wget/curl commands specify the PVC directory
-        
-        # Create flag file to indicate successful download
-        touch "${DATA_DIR}/downloaded.flag"
-    else
-        echo "Data already exists in PVC, skipping download"
-    fi
-}
+    # Download UK map
+    wget -O /photon/photon_data/uk.osm.pbf https://download.geofabrik.de/europe/great-britain-latest.osm.pbf
 
-# Ensure we're writing to PVC
-download_data
+    # Download Saudi Arabia map
+    wget -O /photon/photon_data/saudi-arabia.osm.pbf https://download.geofabrik.de/asia/saudi-arabia-latest.osm.pbf
 
-# Start Photon with PVC data directory
-exec java -jar /photon/photon.jar -data-dir "${DATA_DIR}" -listen-port 2322 -elasticsearch http://elasticsearch-master.default.svc.cluster.local:9200
+    # Merge the files (requires osmium-tool to be installed)
+    echo "Merging UK and Saudi Arabia maps into a single file..."
+    osmium merge /photon/photon_data/uk.osm.pbf /photon/photon_data/saudi-arabia.osm.pbf -o /photon/photon_data/merged.osm.pbf
+fi
+
+# Start Photon with the merged map file
+if [ -f "/photon/photon_data/merged.osm.pbf" ]; then
+    echo "Starting Photon with UK and Saudi Arabia map data..."
+    java -jar photon.jar -data-dir /data/photon_data -nominatim-import /photon/photon_data/merged.osm.pbf
+else
+    echo "Could not start Photon, the required map files were not found."
+fi
