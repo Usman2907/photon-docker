@@ -1,33 +1,8 @@
-# FROM openjdk:11-jre-slim
-
-# # Install necessary tools
-# RUN apt-get update && \
-#     apt-get install -y wget && \
-#     apt-get clean
-
-# # Set the Photon version
-# ENV PHOTON_VERSION=0.3.5
-
-# # Download the Photon jar file only
-# WORKDIR /photon
-# RUN wget https://github.com/komoot/photon/releases/download/${PHOTON_VERSION}/photon-${PHOTON_VERSION}.jar -O photon.jar
-
-# # Add initialization script
-# COPY entrypoint.sh /photon/entrypoint.sh
-# RUN chmod +x /photon/entrypoint.sh
-
-# EXPOSE 2322
-
-# CMD ["/photon/entrypoint.sh"]
-
-
 # Use OpenJDK as the base image
 FROM openjdk:11-jre-slim
 
 # Install necessary tools
-RUN apt-get update && \
-    apt-get install -y wget osmium-tool && \
-    apt-get clean
+RUN apt-get update && apt-get install -y wget osmium-tool && apt-get clean
 
 # Set the Photon version
 ENV PHOTON_VERSION=0.3.5
@@ -39,7 +14,7 @@ RUN mkdir -p /data/photon_data
 # Download the Photon jar file
 RUN wget https://github.com/komoot/photon/releases/download/${PHOTON_VERSION}/photon-${PHOTON_VERSION}.jar -O photon.jar
 
-# Copy the updated entrypoint script
+# Copy entrypoint.sh and make it executable
 COPY entrypoint.sh /photon/entrypoint.sh
 RUN chmod +x /photon/entrypoint.sh
 
