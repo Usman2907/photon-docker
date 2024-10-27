@@ -18,4 +18,4 @@ RUN chmod +x /photon/entrypoint.sh
 
 EXPOSE 2322
 
-CMD ["/photon/init.sh"]
+CMD ["/photon/entrypoint.sh"]
