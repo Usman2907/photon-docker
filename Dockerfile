@@ -13,8 +13,8 @@ WORKDIR /photon
 RUN wget https://github.com/komoot/photon/releases/download/${PHOTON_VERSION}/photon-${PHOTON_VERSION}.jar -O photon.jar
 
 # Add initialization script
-COPY init.sh /photon/init.sh
-RUN chmod +x /photon/init.sh
+COPY entrypoint.sh /photon/entrypoint.sh
+RUN chmod +x /photon/entrypoint.sh
 
 EXPOSE 2322
 
