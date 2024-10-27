@@ -102,15 +102,15 @@ jobs:
         
     - name: Update Kubernetes Deployment Image
       run: |
-        sed -i 's|\(.*dkr\.ecr\..*amazonaws\.com/photon:\).*|\1${{ env.IMAGE_TAG }}|' photon/deployment.yaml
+        sed -i 's|\(.*dkr\.ecr\..*amazonaws\.com/photon:\).*|\1${{ env.IMAGE_TAG }}|' photon/new-deployment.yaml
     
     - name: Show modified deployment.yaml
       run: |
-        cat photon/deployment.yaml
+        cat photon/new-deployment.yaml
         
     - name: Deploy to Kubernetes
       run: |
-        kubectl apply -f photon/deployment.yaml -n default
+        kubectl apply -f photon/new-deployment.yaml -n default
 
     - name: Verify Deployment
       run: |
