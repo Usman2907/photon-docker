@@ -24,7 +24,7 @@ ls -lah /photon/photon_data
 # Start Photon with the UK map file if it exists
 if [ -f "/photon/photon_data/united-kingdom-latest.osm.pbf" ]; then
     echo "Starting Photon with UK map data..."
-    java -jar photon.jar -data-dir /data/photon_data -nominatim-import /photon/photon_data/united-kingdom-latest.osm.pbf
+    java -jar photon-0.5.0.jar -data-dir /data/photon_data -nominatim-import /photon/photon_data/united-kingdom-latest.osm.pbf
 else
     echo "Could not start Photon, the UK map file was not found."
     exit 1
